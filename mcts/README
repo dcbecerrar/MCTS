@@ -1,0 +1,23 @@
+There are a few parameters to tune in mcts_frag.py depending on which fragment you're building
+For 5ggs, the start, end, and midpoint are already predefined. All that is needed to be changed is the START_RES and END_RES variables
+For convenience, I have already set the parameters correctly for each and put them into two mcts files: mcts_frag.py for frag1 and mcts_frag2.py for frag2
+Depending on which fragment you're building, submit the corresponding bash file (submitjob_loop_frag1.sh or submitjob_loop_frag2.sh).
+
+Note: You could also choose to use original midpoint or the disembodied residue (also provided) as the midpoint. For initial run I suggest to just use the original midpoint.
+
+Each individual job with the current configurations will produce 16 fragments. For my runs, I typically produce 10k fragments (quite an overkill) for each, meaning I need to submit the job 625 times. You can do this using slurm's array job command (can be defined either in bash file or on command line)
+For 10k fragments, this should take ~4-5 hours if no jobs are on queue.
+
+Once finished, there will be a bunch of 5ggs_relaxed_phe_frag1*.out and 5ggs_relaxed_phe_frag2*.out files. Each file will a list of 16 elements with each element following the format below:
+
+[score, [(psi, tau, phi)*number of residues in fragment]]
+
+The score basically corresponds to the loop closure score, so we only want fragments that have scores less than 0.16. You can filter out those fragments with bash commands like the one below:
+
+cat 5ggs_relaxed_phe_frag1* | grep -Po "\[[0-9]\.[0-9]*, \[([-]?[0-9]*, )*[-]?[0-9]*\]" | sort -k1 | sed 's/^\[//g' | head
+
+//Comment David => The final command to use is: cat 5ggs_relaxed_met_frag1* | grep -Po "\[[0-9]\.[0-9]*, \[([-]?[0-9]*, )*[-]?[0-9]*\]" | sort -k1 | sed 's/^\[//g' | awk '$1 < 0.16'
+
+Once obtained, put these lines in a file, with the top of the file indicating the number of lines in the file. This would be used by build_frags_phe.py to combine the loops together.
+
+Protocol continued in the combine_frags directory

@@ -1,0 +1,27 @@
+I have to perform some changes in order to be able to run the algorithm. The changes are as follows.
+
+1. I changed the account to run the experiments.
+2. I have to create a python environment with the needed libraries.
+3. I have to load the modules of python for scipy
+
+In conclusion, the script to run the experiments in Cedar is now as follows. Please remember that you have to change the --levels parameter depending on the residue that you are fixing. 
+
+#!/bin/bash
+#SBATCH -t 0-02:00
+#SBATCH --cpus-per-task=16
+#SBATCH --mem 4000
+#SBATCH --account=def-pmkim
+#SBATCH --output="5ggs_relaxed_met_frag1-%A_%a.out"
+
+#parallel < commands.txt
+source /home/becerra/Antibodies/MCTS_FINAL/mcts_MET/ENV/bin/activate
+python mcts_frag.py --levels 15 --num_sims 16 --num_rand 4
+
+To run the scripts, I run the following command:
+sbatch --array=0-624 submitjob_loop_frag1.sh
+sbatch --array=0-624 submitjob_loop_frag1.sh
+
+To filter the results, I used the following lines:
+cat 5ggs_relaxed_anchorPHE_frag2* | grep -Po "\[[0-9]\.[0-9]*, \[([-]?[0-9]*, )*[-]?[0-9]*\]" | sort -k1 | sed 's/^\[//g' | awk '$1 < 0.16'> 5ggs_relaxed_frag2_anchorphe_all_possible_run1.txt
+and
+cat 5ggs_relaxed_anchorPHE_frag2* | grep -Po "\[[0-9]\.[0-9]*, \[([-]?[0-9]*, )*[-]?[0-9]*\]" | sort -k1 | sed 's/^\[//g' | awk '$1 < 0.16'> 5ggs_relaxed_frag2_anchorphe_all_possible_run1.txt
