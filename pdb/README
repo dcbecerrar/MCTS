@@ -1,0 +1,3 @@
+Import 5ggs into pymol and isolate target, and heavy chains (chain Z, portion of chain A and chain B)
+Save isolated structure as new pdb
+Run Rosetta relax on that structure (~45 min) to get structure original_relaxed.pdb

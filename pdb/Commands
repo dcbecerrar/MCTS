@@ -1,0 +1,1 @@
+~/Documents/KimLab/Design/Rosetta/rosetta_bin_linux_2017.52.59948_bundle/main/source/bin/relax.default.linuxgccrelease -s 5ggsTest.pdb -out:suffix _relaxed @general_relax_flags

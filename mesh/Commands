@@ -1,0 +1,15 @@
+1) Open Pymol. Select the residues in chain A (starting YYCAR and ending WGQGT). Right click and remove => Check that they are removed from the sequence.
+2) In the 'H' command, hide everything. => in all
+3) In the 'S' command, select surface.
+4) Type => set surface_solvent, on
+5) Type => set solvent_radius, 1.0
+6) Type cmd.set_view("1.0,0.0,0.0 , 0.0,1.0,0.0 , 0.0,0.0,1.0 , 0.0,0.0,0.0 , 0.0,0.0,0.0 , 0.0,0.0,0.0")
+7) Type cmd.save("5ggs_relaxed_wH_2a_surface.wrl")
+
+Now run the .sh and py script
+8) Run the .sh script normally.
+9) To run the python scrip I had to create a conda environment.
+	a) activate the environment by typing => conda activate mymayaviP2
+	b) run the script => python print_mesh.py 5ggs_relaxed_wH_2a_surface_mesh.csv
+	c) deactivate the environment => source deactivate mymayaviP2 
+

@@ -1,0 +1,16 @@
+Import original_relaxed.pdb into pymol and remove H3 loop (starts at around 94 with residues starting YYCAR and ending WGQGT)
+
+Make mesh in pymol with starting pdb structure without H3 with following parameters:
+
+surface_solvent on
+solvent_radius 1.0
+
+Hide everything in pymol EXCEPT mesh and set view coordinates as true coordinates using set_view command and following input parameters:
+set_view(1,0,0,
+	 0,1,0,
+	 0,0,1,
+	 0,0,0,
+	 0,0,0,
+	 0,0,0)
+
+Save pymol scene as wrl file and and use get_mesh.sh and print_mesh.py to get a final npy file of the mesh
