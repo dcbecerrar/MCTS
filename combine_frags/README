@@ -1,0 +1,8 @@
+Using the last files created from mcts part (example files "5ggs_relaxed_frag1_phe_all_possible_run1.txt" and "5ggs_relaxed_frag2_phe_all_possible_run1.txt" provided), run build_frags_phe.py. Specify the file locations above in the script and also the directory where the output should be located.
+
+For first run purposes, I have created two blank directories called "frag_combos" and "frag_full_constructs" so that you don't need to change anything in the script if using the example files mentioned above.
+
+Next, run pdb_H3_generator.py to put the built loops back into the antibody-target template (you can run on command line and just specify the input and output directories)
+
+Pick 1k random constructs from that and put that in a new directory. We can then move on to the fastdesign protocol.
+

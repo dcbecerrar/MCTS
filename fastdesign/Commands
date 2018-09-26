@@ -1,0 +1,5 @@
+In order to run the scripts on cedar. I had to include the module in the bash file: module load rosetta/3.8
+I also created a .sh file for each round that I runned. 
+
+To filter the top 200 UNIQUE sequences, I used the following command
+cat 5ggs_relaxed_fastrelax_backbone_only_all_pdb_H3_seq.txt | sort -k5 -k2 -r | sort -k5 -u | sort -k2 | tail -200 > relax1_top200_score.sc

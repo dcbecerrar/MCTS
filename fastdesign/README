@@ -1,0 +1,13 @@
+From the 1k loops from MCTS, run submitjob_fastdesign.sh and submitjob_extract.sh for 5 rounds with the following parameters:
+
+Round 1: 1k loops input with 2 rounds fastdesign on each, producing 2k loops. Run submitjob_extract.sh and pick top200 rosetta scoring loops with UNIQUE sequences and put in separate directory (called relax1_top200 for example)
+
+Round2: 200 loops input from directory relax1_top200 with 5 rounds fastdesign on each, producing 1k loops. Run submitjob_extract.sh and pick top100 unique loops and put in separate directory
+
+Rounds 3-5: 100 loops input from directory with 5 rounds fastdesign on each, producing 500 loops. Pick top100 unique loops and put in separate directory
+
+Note: You can get top rosetta scoring unique loops from output file of submitjob_extract.sh all using bash commands, something like this:
+
+cat *filename* | sort -k5 -k2 -r | sort -k5 -u | sort -k2 | tail -100
+
+-k5 are the sequences and -k2 are the rosetta scores
