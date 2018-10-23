@@ -13,6 +13,10 @@ import multiprocessing
 import os, sys
 from Bio.PDB import PDBParser
 
+# import backbone_trie as bt
+# import pickle
+import time
+
 
 """
 A quick Monte Carlo Tree Search implementation.  For more details on MCTS see See http://pubs.doc.ic.ac.uk/survey-mcts-methods/survey-mcts-methods.pdf
@@ -27,7 +31,7 @@ In particular there are two models of best child that one can use
 """
 
 #MCTS scalar.  Larger scalar will increase exploitation, smaller will increase exploration. 
-SCALAR=1/(math.sqrt(2.0))
+SCALAR=math.sqrt(2.0)
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger('MyLogger')
@@ -79,7 +83,7 @@ GEN_FAV = np.load("rama_general_favored.npy").item()
 # Adjust params below to build different fragments
 
 START_RES = FIRST_RES
-END_RES = FIXED_RES
+END_RES = LAST_RES
 
 
 # Note: START_PHI is used to determine possible values for first psi angle.
@@ -87,14 +91,7 @@ END_RES = FIXED_RES
 # 0 if building from disembodied residue (START is MID)
 
 
-if START_RES == FIRST_RES and END_RES == FIXED_RES:
-    START = START
-    END = MID
-    START_PHI = -115
-elif START_RES == FIXED_RES and END_RES == LAST_RES:
-    START = MID
-    END = END
-    START_PHI = 0
+START_PHI = -115
 
 
 class State():
@@ -147,15 +144,14 @@ class State():
         r = 1.0-(self.value-self.GOAL)/self.MAX_VALUE
         return r
 
-    def calc_value(self):
+    def construct_backbone(self, constructed_size):
         np.random.seed()
 
-        dih = np.zeros([(END_RES-START_RES+1),3])
+        dih = np.zeros([(END_RES - START_RES+1), 3])
         angle = np.zeros([(END_RES - START_RES+1), 3])
         length = np.zeros([END_RES - START_RES, 3])   # Note length of this is 1 row shorter
         
         # Fixed dihedral angles, bond angles, and bond lengths used for loop building
-
 
         # Order: C-N-CA, N-CA-C (tau), CA-C-N
         angle[:,0] = 121.7
@@ -163,11 +159,10 @@ class State():
         angle[0,0] = 0
         angle[-1,-1] = 0
 
-
-        # Order: N-CA, C-N, CA-C
+        # Order: N-CA, CA-C, C-N 
         length[:,0] = 1.329
-        length[:,1] = 1.458
-        length[:,2] = 1.525
+        length[:,1] = 1.525
+        length[:,2] = 1.458
         #length[0,0] = 0
 
         # Column 0 is omega, column 1 is phi, column 2 is psi
@@ -213,14 +208,11 @@ class State():
 
         angle[1:,1] = np.concatenate((np.array(curr_tau), np.random.choice(self.TAU, (self.NUM_TURNS/3) - len(curr_tau))))
 
-
-
         angle = angle[angle!=0].flatten()
         dih = dih[dih!=0].flatten()
         length = length[length!=0].flatten()
 
-
-        constructed_size = 3*(END_RES - START_RES + 1)   # Build fragment from start fixed to end fixed
+        #print(angle, dih, length)
 
         constructed = np.zeros([constructed_size,3])
         constructed[0:3] = START
@@ -228,6 +220,7 @@ class State():
         i = 3
 
         p = START
+        mid_coords, end_coords = p, p
 
         while(i < (constructed_size)):
             curr_d = dih[i-3]
@@ -240,6 +233,18 @@ class State():
 
             i+=1
             p = constructed[i-3:i]
+
+            if i == 3*(FIXED_RES - START_RES) + 3:
+                mid_coords = p
+            elif i == constructed_size - 1:
+                end_coords = p
+
+        return constructed, mid_coords, end_coords
+
+    def calc_value(self):
+        constructed_size = 3*(END_RES - START_RES + 1)   # Build fragment from start fixed to end fixed
+
+        constructed, mid_coords, end_coords = self.construct_backbone(constructed_size)
 
         con_oxy = np.zeros([constructed_size*4/3,3])
         oxy_mask = np.zeros(con_oxy.shape[0],dtype=bool)
@@ -281,10 +286,17 @@ class State():
         #num_clash = 0
         clash_penalty = num_clash * self.MAX_VALUE/10
 
+        mid_score = np.sqrt(np.sum((mid_coords - MID) ** 2)/3.0)
+        end_score = np.sqrt(np.sum((end_coords - END) ** 2)/3.0)
 
-        final = np.sqrt(np.sum((p-END) ** 2)/3.0)
+        num_of_moves = float(len(self.moves))
+        len_first_frag = (FIXED_RES - FIRST_RES)*3
+        len_whole = (LAST_RES - FIRST_RES)*3
 
-        return final + mesh_penalty + clash_penalty
+        if num_of_moves <= 15:
+            return (num_of_moves/len_first_frag)*mid_score + mesh_penalty + clash_penalty
+        else:
+            return mid_score + (num_of_moves/len_whole)*end_score + mesh_penalty + clash_penalty
 
 
     def calc_internal_clashing(self, array):
@@ -342,7 +354,6 @@ class Node():
         return s
         
 
-
 def UCTSEARCH(budget,root):
     for iter in range(budget):
         if iter%10000==9999:
@@ -379,8 +390,9 @@ def BESTCHILD(node,scalar):
     for c in node.children:
 
         exploit = c.reward
-        explore=math.sqrt(math.log(2*node.visits)/float(c.visits))  
+        explore=math.sqrt(math.log(node.visits)/float(c.visits))  
         score=exploit+scalar*explore
+        # print(exploit, scalar, explore, score)
         if score==bestscore:
             bestchildren.append(c)
         if score>bestscore:
@@ -416,17 +428,52 @@ def BACKUP(node,reward,value):
 def MCTS(args):
 
     global MAXRAND
-    (num_sims, levels, MAXRAND) = args
+    (num_sims, levels, MAXRAND, walltime) = args
 
-    current_node=Node(State())
-    for l in range(levels):
+    root = Node(State())
 
-        current_node=UCTSEARCH(num_sims*(current_node.state.num_moves),current_node)
-        #print(current_node.state)
-        #print current_node.parent.children
-        #print(current_node.state)
-        #print current_node.parent.children
+    t_end = time.time() + walltime
+    while time.time() < t_end:
+        for l in range(levels):
+            UCTSEARCH(num_sims*(root.state.num_moves), root)
+
+    current_node = root
+    while current_node.state.terminal()==False:
+        if len(current_node.children) > 0:
+            current_node = BESTCHILD(current_node,0)
+        else:
+            break
+
     return [current_node.state.value, current_node.state.moves]
+
+
+# def create_trie(mcts_outfile, epsilon):
+#     backbones = TrieNode([10.07199955, -10.81700039, -17.52499962], epsilon)
+#     family_heads = []
+
+#     rosetta_scores = bt.parse_rosetta_scores("score.sc")
+#     angles = bt.parse_mcts_output(mcts_outfile)
+
+#     assert len(rosetta_scores) == len(angles)
+
+#     for rank in angles:
+#         assert rank in rosetta_scores
+
+#     for rank in angles:
+#         moves = angles[rank]
+
+#         test_state = State(50, moves, 0, "psi")
+
+#         backbone = test_state.construct_backbone(len(moves) + 3)[0]
+
+#         if bt.add_backbone(backbones, backbone, epsilon, rosetta_scores[rank]):
+#             family_heads.append(rank)
+
+#     print(len(family_heads))
+
+#     outfile = open("test_trie.ds", "w")
+#     pickle.dump(backbones, outfile)
+#     outfile.close()
 
 
 if __name__=="__main__":
@@ -434,40 +481,48 @@ if __name__=="__main__":
     parser.add_argument('--num_sims', action="store", required=True, type=int)
     parser.add_argument('--levels', action="store", required=True, type=int, choices=range(State.NUM_TURNS+1))
     parser.add_argument('--num_rand', action="store", required=True, type=int)
+    parser.add_argument('--walltime', action="store", required=True, type=int)
 
     args=parser.parse_args()
 
     MAXRAND = args.num_rand
     
-    SLURM_CPUS = int(os.environ['SLURM_JOB_CPUS_PER_NODE'])
-    #SLURM_CPUS = 1
-    #print(SLURM_CPUS)
-    #print(multiprocessing.cpu_count())
+    # SLURM_CPUS = int(os.environ['SLURM_JOB_CPUS_PER_NODE'])
     
-    cpus = SLURM_CPUS
+    # cpus = SLURM_CPUS
 
-    all_iter = [[args.num_sims, args.levels, MAXRAND] for i in range(cpus)]
+    # all_iter = [[args.num_sims, args.levels, MAXRAND] for i in range(cpus)]
 
-    pool = Pool(cpus)
-    result = list(pool.map(MCTS, all_iter))
-    pool.close()
-    pool.join()
-    print result
+    # pool = Pool(cpus)
+    # result = list(pool.map(MCTS, all_iter))
+    # pool.close()
+    # pool.join()
+    # print result
     
-    '''
-    current_node=Node(State())
-    for l in range(args.levels):
+    root = Node(State())
 
-        current_node=UCTSEARCH(args.num_sims*(current_node.state.num_moves),current_node)
+    t_end = time.time() + args.walltime
+
+    final_moves = []
+
+    while time.time() < t_end:
+        current_node = root
+        for l in range(args.levels):
+            current_node = UCTSEARCH(args.num_sims*(current_node.state.num_moves), current_node)
         
-        print("level %d"%l)
-        print("Num Children: %d"%len(current_node.parent.children))
-        for c in (current_node.parent.children):
-            print(c.state.moves[-1],c)
-        print("Best Child: %s"%current_node.state)
+            print("level %d"%l)
+            print("Num Children: %d"%len(current_node.parent.children))
+            # for c in (current_node.parent.children):
+            #     print(c.state.moves[-1],c)
+            print("Best Child: %s"%current_node.state)
 
-        print("--------------------------------")   
+            print("--------------------------------")   
+
+    current_node = root
+    while current_node.state.terminal()==False:
+        if len(current_node.children) > 0:
+            current_node = BESTCHILD(current_node,0)
+        else:
+            break
     
-
-    #print(current_node.state)  
-    '''    
+    print(current_node.state)  
